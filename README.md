@@ -16,7 +16,7 @@ This project focuses on analyzing and forecasting trends in Python-related quest
 ### 2. **Data Description**
 - **Source**: Stack Overflow dataset containing monthly question counts for various programming languages from 2008 to 2024.
 - **Key Features**:
-  - `Month`: Date in YYYY-MM-DD format.
+  - `Month`: Date in MM-DD-YYYY format.
   - `Python`: Monthly count of Python-related questions.
 - **Preprocessing**:
   - Converted `Month` to Date format.
@@ -115,3 +115,4 @@ Special thanks to **Professor Ronak R. Parikh** for his guidance and support thr
 
 ## **Contact**
 For any questions or feedback regarding this project, feel free to reach out via GitHub or email.
+Email: malhotraritik227@gmail.com, rk1208@scarletmail.rutgers.edu
