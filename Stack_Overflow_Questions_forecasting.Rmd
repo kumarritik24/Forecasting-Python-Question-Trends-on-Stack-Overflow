@@ -1,0 +1,638 @@
+---
+title: "Stack_Overflow_Questions_Forecasting"
+author: "Ritik Kumar"
+date: "2024-11-24"
+output: html_document
+---
+
+## Importing the dataset
+```{r}
+library(fpp)
+library(fpp2)
+library(readxl)
+library(forecast)
+library(ggplot2)
+library(dplyr)
+
+#Import the dataset
+data <- read_excel("C:/Users/malho/Downloads/TotalQuestions_Stack_Overflow.xlsx")
+print(head(data))
+```
+
+* First we import the dataset and print the head of data to see our data must be succesfully uploaded or not.
+
+## Forcasting of Python questions by using Stack Overflow Dataset
+##### Creating Times Series Plot
+```{r}
+# first Convert 'Month' column to Date type
+data$Month <- as.Date(data$Month, format = "%m/%d/%Y")
+
+# Convert it into Time Series data 
+python_ts <- ts(data$Python, start = c(2008,9), frequency = 12)
+
+# Plot the original time series data of Python Question from 2008-2022
+plot(python_ts, main = "Python Questions Over Time", xlab = "Time", ylab = "Number of Questions")
+```
+
+##### Initial Observations
+* From all programming languages questions we are going to forecast the python related questions by using the dataset.  
+* In the second step we convert the month column to data type to better use the column for the forecasting models.
+* Convert the python data into time series data format to forecast the data.
+* We start with plotting the time series to visualize and understand the data.
+* The plot shows that there is an increasing trend in the python questions starting from 2008 till around 2021.
+* From 2021 till 2024, there has been observed a decreasing trend in the python questions.
+* If we were to forecast the data, we should be considering the window from 2018.
+
+## Considering only a window from 2018 to 2024
+```{r}
+python_ts_actual <- window(python_ts, start = 2018, end = 2024 )
+plot(python_ts_actual, main = "Time Series Plot of Python Questions from 2018 - 2024", xlab = "Time", ylab = "Number of Questions")
+```
+
+* Window function has been used from the year 2018 to 2024 forecast the data better.
+* If we consider the whole data, that might not give us the exact forecast.
+* From 2018 it will be more than 7 years data that we are considering and this data should be good enough to be considered for time series forecasting.
+
+## Identify Central Tendency
+##### Min, max, mean, median, 1st and 3rd Quartile values of the times series
+```{r}
+summary(python_ts_actual)
+```
+
+* The summary function above gives the min, max, mean, median, 1st and 3rd Quartile values of the times series.
+
+##### Box Plot
+```{r}
+boxplot(python_ts_actual, main ='Boxplot for Python Questions Time Series')
+hist(python_ts_actual)
+Acf(python_ts_actual)
+```
+
+##### Observations and Inferences 
+* The boxplot shows that there are few outliers in the data that present on both the upper and lower ends, indicating rare or extreme values.
+* From summary, we can also see that the mean value is less then the median value for the time series.
+* The plot appears slightly symmetrical rather than strongly left-skewed, as the box and whiskers are somewhat balanced.
+* The presence of lower outliers might give an impression of left skewness, but it would need confirmation using statistical skewness metrics.
+* Most data points lie within a consistent range, with a moderate interquartile range(IQR)
+* From the ACF plot, we can see that many of the values crossed the confidence intervals, stating there is a trend component in the data.
+* Also, we can see that after 16th lag period, the ACF plot is dipping into the negative values stating seasonality also exists in the data.
+
+## Decomposition
+
+##### Decomposition Plot
+
+```{r}
+stl_decomp <- stl(python_ts_actual, s.window = "periodic")
+plot(stl_decomp, main = 'Decomposition Plot')
+```
+
+##### Is the time series seasonal?
+* Yes, The time series is seasonal, as evident from the consistent repeating pattern in the seasonal component.
+
+##### Is the decomposition additive or multiplicative?
+
+```{r}
+decom <- decompose(python_ts_actual)
+decom$type
+```
+
+* The decomposition seems to be additive. 
+* Because, with as trend increases, we do not see any increase in the seasonality. The seasonality appears to be the same repeated throughout.
+
+##### •	If seasonal, what are the values of the seasonal monthly indices? 
+
+```{r}
+decom$figure
+```
+
+* In time series decomposition, decom$figure refers to the seasonal component values extracted during the decomposition process in R.
+* It shows how much the seasonal component contributes to or detracts from the overall value for each time point in a single cycle.
+* Positive values indicate the time point contributes above average to the data.
+* Negative values indicate it contributes below average to the data.
+
+##### Observations and Inferences
+
+* The second panel ("seasonal") clearly shows a repeating pattern over regular intervals (likely yearly). This indicates that the time series has a seasonal component.
+* From 2018 to 2021, the values of the time series seem to increase throughout. That displays a long-term upward trend peaking around 2021, followed by a decline.
+* The last panel shows the residuals or irregular components, representing the variations not explained by trend or seasonality.
+
+##### Seasonality adjusted plot
+```{r}
+plot(python_ts_actual, ylab = 'Number of Questions')
+lines(seasadj(stl_decomp), col="Red")
+```
+
+* There are repeated fluctuations that can be observed after applying seasonal adjustment.
+* With time, these fluctuations will cause deviations and change our forecast. So, it is important to consider the seasonal variation in the data.
+
+## Testing the various Forecasting methods for the given dataset
+
+## Naive Method 
+* The naive forecasting method is one of the simplest forecasting techniques. It assumes that the most recent observed value is the best predictor for all future values. This method does not account for trends, seasonality, or other patterns in the data.
+
+##### Output
+```{r}
+naive_forecast <- naive(python_ts_actual)
+plot(naive_forecast)
+```
+
+##### Perform Residual Analysis for this technique. 
+```{r}
+plot(naive_forecast$residuals, main = "Residual Analysis of Naive Model")
+```
+
+* Residuals vary between -2000 and +4000 with noticeable spikes.
+* Structured patterns suggest the naive model fails to capture trend or seasonality.
+* Large spikes around 2020-2021 indicate poor model performance during specific periods.
+* For better improvement we consider different models for forecasting.
+
+###### Residuals Histogram
+```{r}
+hist(naive_forecast$residuals)
+```
+
+* The histogram appears roughly symmetrical around 0, indicating that the residuals are balanced, with no significant skewness in the errors.
+* The residuals resemble a bell-shaped distribution but require a Q-Q plot or test for confirmation.
+* Most residuals lie within ±2000, suggesting good accuracy, though a few outliers exist beyond ±3000.
+* Extreme values indicate potential anomalies or areas for model refinement.
+
+###### Fitted vs Residual Values
+```{r}
+cbind(Fitted = fitted(naive_forecast), 
+      Residuals = residuals(naive_forecast)) %>%
+  as.data.frame() %>%
+  ggplot( aes(x= Fitted, y= Residuals)) + geom_point()
+```
+
+* The residuals are scattered randomly around zero, indicating no clear patterns or systematic errors.
+* The spread of residuals appears relatively consistent, with no obvious funneling or widening patterns, suggesting constant variance.
+* A few residuals deviate significantly, indicating potential outliers that might need further investigation.
+* The lack of visible patterns supports that the model fits the data reasonably well.
+
+###### Actual vs Residual values
+```{r}
+cbind(Data=python_ts_actual,
+      Residuals=residuals(naive_forecast)) %>%
+  as.data.frame() %>%
+  ggplot(aes(x=Data, y=Residuals)) + geom_point()
+```
+
+* Similar to the previous plot, The actual vs Residuals plot also appears not to be random. 
+
+###### ACF of residuals
+```{r}
+Acf(naive_forecast$residuals)
+```
+
+* A significant spike is observed at lag 12, indicating potential seasonality that has not been fully captured by the model.
+* Most other lags fall within the confidence bounds, suggesting that residuals are largely uncorrelated.
+* The presence of significant autocorrelation at lag 12 suggests the model may not have fully accounted for seasonal patterns.
+
+##### Accuracy
+```{r}
+accuracy(naive_forecast)
+```
+
+##### Forecast 
+```{r}
+forecast(naive_forecast)
+plot(forecast(naive_forecast))
+```
+
+##### Naive Method Summary
+* The forecast predicts a consistent value of 7793 for each period, suggesting the naive method assumes the future will follow the most recent observed value.
+* The widening intervals indicate increasing uncertainty in the naive forecast as the prediction horizon extends.
+* The naive method is simplistic, assuming no trends or seasonality, which may not capture the underlying patterns in the data.
+* MAPE: 7.07% indicates moderate forecasting accuracy (below 10% is acceptable).
+* MAE (1228.33) and RMSE (1559.15) suggest reasonable prediction errors given the scale of the data.
+* ME (-117.92) shows a slight underprediction bias but is minimal relative to the data scale.
+* ACF1 (-0.075) indicates no significant autocorrelation in residuals, suggesting randomness in errors.
+* We can consider more forecasting techniques and check if the error values are less than this one.
+* Rather, we can try naive method with drift component and that may yield us better forecast.
+
+## Simple Moving Averages
+* Simple Moving Averages (SMA) is a basic yet widely used time-series forecasting method. It calculates the average of a fixed number of past observations, updating the average as new data becomes available.
+
+##### Plot the graph for time series. 
+##### Simple Moving average of order 3, 6, and 9
+```{r}
+ma3_forecast = ma(python_ts_actual, order = 3)
+ma6_forecast = ma(python_ts_actual, order = 6)
+ma9_forecast = ma(python_ts_actual, order = 9)
+plot(python_ts_actual, main ="Plot along with moving averages")
+lines(ma3_forecast, col='Red')
+lines(ma6_forecast, col='Blue')
+lines(ma9_forecast, col='Green')
+```
+
+##### Observations
+
+* The plot shows the original time series (python_ts_actual) along with multiple moving averages of different window sizes.
+* From the plots, it is observed that the higher the order we consider, the smoother the moving average curve in the plot.
+* It can be seen that the Green line above is the smoothest compared to Blue or Red lines.
+* The black line (original data) exhibits sharp fluctuations, which are smoothed out by the moving averages, making it easier to discern overall trends.
+* The Red line (order 3) gives the most real data compared to the other two. The higher order averages smoother the plot and do not give the actual values.
+
+## Simple Smoothing
+* Simple Smoothing, also known as Simple Exponential Smoothing (SES), is a forecasting method used for time-series data. It is designed to handle data without trends or seasonality by giving exponentially decreasing weights to past observations, with more weight assigned to recent data points.
+
+```{r}
+ses_data = ses(python_ts_actual)
+plot(ses_data)
+attributes(ses_data)
+```
+
+```{r}
+summary(ses_data)
+```
+
+##### Observations 
+* Alpha = 0.9228 
+* Alpha specifies the coefficient for the level smoothing. Values near 1.0 mean that the latest value has more weight, making it responsive to recent changes in the data.
+* Initial state: l = 16401.1605  The starting level of the smoothed series.
+* Sigma: 1565.908 Sigma defines the variance in the forecast predicted.
+* AIC (1391.18) and BIC (1398.06) suggest a reasonable model fit, though these metrics should be compared to alternative models for better context.
+* MAPE (6.96%): Indicates good forecast accuracy.
+* ME (-127.60): Slight under prediction bias.
+* RMSE (1544.31) and MAE (1212.35): Represent moderate prediction errors relative to the data scale.
+* Predicted value remains constant at 7805.59 across all future periods, characteristic of simple exponential smoothing.
+
+##### Residual Analysis
+```{r}
+plot(ses_data$residuals, main = "Residual Analysis of Simple Exponential Smoothing")
+```
+
+* The residuals show no clear pattern over time, indicating the model captures the main structure of the data.
+* The spread of residuals appears consistent, though there are a few spikes (e.g., around 2020) suggesting occasional large errors.
+* Residuals oscillate around zero, implying minimal bias in predictions.
+* Large positive and negative deviations indicate periods where the model struggled to fit the data accurately.
+
+###### Histogram plot of residuals
+```{r}
+hist(ses_data$residuals)
+```
+
+* The histogram is approximately symmetric around zero, suggesting minimal bias in the model's predictions.
+* The residuals resemble a normal distribution, though there may be some deviation at the tails.
+* Most residuals are concentrated near zero, indicating that the model performs well on average.
+* A few residuals extend beyond ±4000, suggesting occasional large prediction errors.
+
+###### Fitted values vs. residuals
+```{r}
+cbind(Fitted=fitted(ses_data),
+      Residuals=residuals(ses_data)) %>%
+  as.data.frame() %>%
+  ggplot(aes(x=Fitted,y=Residuals)) + geom_point()
+```
+
+* Residuals are randomly scattered around zero, indicating no visible patterns and supporting the assumption of a well-fitted model.
+* The residuals show no trend or structure, suggesting that the model does not systematically over predict or under predict across fitted values.
+* The spread of residuals appears relatively consistent across the range of fitted values, indicating homoscedasticity (constant variance). 
+* A few residuals deviate significantly from zero, indicating potential outliers or instances where the model struggled.
+
+###### Actual values vs. residuals
+```{r}
+cbind(Data = python_ts_actual,
+      Residuals=residuals(ses_data)) %>%
+  as.data.frame() %>%
+  ggplot(aes(x=Data, y=Residuals)) + geom_point()
+```
+
+* Similar to the previous plot, the Actual vs. Residuals plot appears to have some trend in the data.
+
+###### ACF plot of the residuals
+```{r}
+Acf(ses_data$residuals)
+```
+
+* A significant spike at lag 12 indicates potential seasonality that has not been fully captured by the model.
+* Residual auto correlations at other lags are mostly within the confidence intervals, suggesting that most of the residuals are uncorrelated.
+* The significant seasonal autocorrelation at lag 12 suggests that the simple exponential smoothing (SES) model is not effectively capturing the seasonality in the data.
+* We will use a seasonal model (e.g., Holt-Winters or SARIMA) to address the seasonal pattern evident at lag 12.
+
+##### Accuracy
+```{r}
+accuracy(ses_data)
+```
+
+* MAPE (6.96%): Indicates good predictive accuracy (values <10% are acceptable).
+* MAE (1212.35) and RMSE (1544.31): Reflect moderate prediction errors relative to the data scale.
+* ME (-127.60): Suggests a slight under prediction bias, but it is minor.
+* ACF1 (-0.0033): Indicates no significant autocorrelation in residuals, suggesting randomness.
+* The SES model provides good accuracy but struggles to capture patterns like seasonality, as indicated by other diagnostics. A seasonal model (e.g., Holt-Winters) may further improve results.
+
+##### Forecast 
+```{r}
+ses_data
+plot(ses_data)
+```
+
+##### Simple Smoothing Summary
+
+* The forecasted values remain constant, reflecting the characteristic of simple exponential smoothing, which assumes no trend or seasonality.
+* Prediction intervals (shaded regions) widen over time, indicating increasing uncertainty as the forecast horizon extends.
+* The model captures historical fluctuations to some extent, but the constant forecast suggests it does not account for recent downward trends.
+* The lack of trend or seasonality in the forecast highlights the model's inability to handle more complex patterns in the data.
+* The SES model performs well for data without trends or seasonality, but negative lower bounds suggest limitations in handling the data’s variability. For better accuracy, consider trend or seasonal models like Holt or Holt-Winters.
+
+##  Holt-Winters 
+* The Holt-Winters Method, also known as Triple Exponential Smoothing, is a powerful forecasting technique for time-series data that incorporates trend and seasonality components in addition to the level of the data. It extends the simpler exponential smoothing methods by accounting for data patterns that change over time.
+
+```{r}
+Hw_forecast <- hw(python_ts_actual, seasonal = "additive")
+plot(forecast(Hw_forecast))
+attributes(Hw_forecast)
+Hw_add <- forecast(Hw_forecast)
+```
+
+* Here, additive Holt winters method is considered.
+* The model captures both the declining trend and seasonal patterns in the data, as seen in the smooth downward-sloping forecast.
+* Prediction intervals widen over time, indicating increasing uncertainty as the forecast horizon extends.
+* The consistent amplitude of seasonal fluctuations suggests the data’s seasonal effects are additive (constant over time).
+* Lower bounds of the forecast interval dip into negative values, which may be unrealistic for the given data context.
+* The model effectively captures the data's structure, but consider evaluating whether negative forecasts are meaningful or if adjustments are required.
+
+###### Observations
+```{r}
+Hw_add$model
+```
+
+* Alpha = 0.9999 Alpha specifies the level component is almost fully reactive to recent data in Holtwinters.
+* Beta = 00952. Beta specifies a low trend smoothing parameter indicates slower updates to the trend in Holtwinters. 
+* Gamma = 0.1901. Gamma specifies Minimal seasonal adjustment suggests a nearly static seasonal pattern in Holtwinters.
+* Values 1.0 means that the latest value has highest weight.
+* Initial states:
+    l = 17754.3854. Baseline level of the series at the start.
+    b = 150.9935. Indicates a small upward trend initially.
+    s = -608.1393 -1430.284 227.215 146.2024 -1706.902 -396.51
+           674.9424 218.6703 1405.956 1287.234 1238.242 -1056.626 . Seasonal components reflect additive fluctuations across different periods.
+* AIC (1365.07) and BIC (1404.01) suggest a relatively good fit but need comparison to alternative models.
+* Sigma = 878.616. Represents the standard deviation of residual errors, indicating moderate variability in predictions.
+
+##### Residual Analysis
+```{r}
+plot(Hw_add$residuals, main = "Residual Analysis of Holt Winters")
+```
+
+* The residuals fluctuate randomly around zero, indicating that the model captures most of the patterns in the data.
+* A significant spike and dip around 2020 suggest the presence of outliers or events that the model struggled to capture.
+* Residuals generally exhibit consistent variability over time, supporting the assumption of homoscedasticity.
+* Despite capturing trends and seasonality, the spikes indicate instances where the model's performance was less accurate.
+* We can observe a couple of up and downs throughout. But even they did not show and growing residual pattern.
+
+###### Histogram plot of residuals
+```{r}
+hist(Hw_add$residuals)
+```
+
+* The residuals are centered around zero, indicating that the model is unbiased overall.
+* The histogram shows a slight skew towards positive residuals, suggesting occasional over prediction by the model.
+* The residuals are mostly within a narrow range, reflecting consistent model performance, but there are a few larger deviations (outliers).
+* The residuals do not perfectly follow a normal distribution, but they are approximately symmetric, which is acceptable for many forecasting scenarios..
+* Overall, comparing the previous forecasts, this forecast appears to be the best till now. 
+
+
+###### Fitted values vs. residuals
+```{r}
+cbind(Fitted = fitted(Hw_add),
+      Residuals=residuals(Hw_add)) %>%
+  as.data.frame() %>%
+  ggplot(aes(x=Fitted, y=Residuals)) + geom_point()
+```
+
+* The residuals are scattered randomly around zero, indicating no major systematic bias in the model's predictions.
+* The spread of residuals appears consistent across the range of fitted values, suggesting the assumption of homoscedasticity (constant variance) holds.
+* A few residuals are significantly higher or lower than the others, which may indicate outliers or events not captured by the model.
+* The lack of visible patterns suggests that the model has effectively captured the trends and seasonality in the data.
+
+
+###### Actual values vs. residuals
+```{r}
+cbind(Data= python_ts_actual,
+      Residuals=residuals(Hw_add)) %>%
+  as.data.frame() %>%
+  ggplot(aes(x=Data, y=Residuals)) + geom_point()
+```
+
+* Similar to the previous plot, the Actual vs. Residuals plot appears to be random.
+
+###### ACF plot of the residuals
+```{r}
+Acf(Hw_add$residuals)
+```
+
+* In the Acf plot, none of the values crossed the confidence levels. It appears to be white noice.
+* Most autocorrelation values fall within the 95% confidence intervals (blue dashed lines), indicating that the residuals are largely random.
+* A small number of lags exceed the confidence bounds, suggesting minor patterns in the residuals that the model did not fully capture.
+* The plot indicates that the Holt-Winters model captures most of the time series structure, but further refinement may improve performance.
+* This signifies that the forecast is a good forecast.
+* This proves to be the best forecast comparing all the previous ones tested.
+
+##### Accuracy
+```{r}
+accuracy(Hw_add)
+```
+
+* ME = -129.63: Slight underestimation on average, but very close to zero, indicating minimal bias.
+* RMSE = 1066.04: Captures the magnitude of larger errors, indicating overall error magnitude.
+* MAE = 768.24: Reflects the average prediction error, showing relatively low absolute deviation.
+* MPE = -0.76% and MAPE = 4.38%: Very low values, suggesting good accuracy relative to the actual values.
+* ACF1 (0.167): Indicates slight autocorrelation in residuals, suggesting some patterns remain unexplained by the model.
+* MASE (0.185): Low value indicates better performance compared to a naïve model.
+
+##### Forecast 
+```{r}
+forecast(Hw_forecast)
+plot(forecast(Hw_forecast))
+```
+
+##### Holtwinters Summary
+* The forecast indicates a declining trend in values starting from February 2024, aligning with the previous downward trend in the actual data.
+* The 80% prediction interval grows wider over time, suggesting increased uncertainty in the medium term.
+* The 95% prediction interval shows significant dispersion, especially in the long term, indicating higher uncertainty in the further future.
+* Beyond mid-2025, the intervals become wide and include unrealistic negative values, reflecting decreasing predictive strength.
+* Short-term forecasts can be relied upon for planning and analysis, but long-term predictions should be treated cautiously due to high variability and uncertainty. Further refinement may be required for better long-term predictions.
+* Holwinters is a better forecast compared to naive and simple smoothing.
+* Holtwinters appears to be the best forecast considering all the previous forecast methods.
+* However, this forecast can still be improved as we can try forecasting using ARIMA models.
+
+## Fit ARIMA Model
+* ARIMA (AutoRegressive Integrated Moving Average) is a powerful statistical model used for time series analyzing and forecasting.It combines three components:
+* AutoRegressive (AR): Models the relationship between an observation and a number of lagged observations (past values).
+* Integrated (I): Applies differencing to make the data stationary (removes trends or seasonality).
+* Moving Average (MA): Captures the relationship between an observation and the residual errors from a moving average model applied to lagged observations.
+* ARIMA is widely used for time series forecasting, particularly when the data exhibits patterns that are not easily captured by simpler models.
+
+##### Explain Output
+```{r}
+# NSDIFFS only works for seasonal data
+nsdiffs(python_ts_actual)
+
+#tsdisplay plots ACF,PACF and timeseries plot together 
+tsdisplay(python_ts_actual)
+
+# Fit ARIMA model
+arima_model <- auto.arima(python_ts_actual)
+arima_model
+
+# Print the summary of the ARIMA model
+summary(arima_model)
+```
+
+## Interpretation
+* nsdiffs specifies that no seasonal differencing is required for the time series.The data is already stationary in terms of seasonality, or the seasonal component is negligible.
+* tsdisplay plots ACF,PACF and timeseries plot together.For more understanding the data.
+* The ARIMA model fitted to the time series indicates the parameters (p, d, q) used. This suggests the autoregressive, differencing, and moving average terms for the series.
+* The AIC/BIC values in the model output help evaluate how well the model fits the data, with lower values indicating better fit.
+* The ARIMA(0,1,0)(1,0,0)[12] model is well-suited for the data and performs effectively in capturing both trends and seasonality.
+* We can use this model for short-term forecasting with confidence.
+* Low AIC (1250.03) and residual diagnostics confirm the model is well-suited for short-term forecasting.
+* The model is reliable, but consider SARIMA or external regressors for further improvement if necessary.
+
+## 3. Residual Analysis
+```{r}
+# We are not finished till we do some residual analysis
+#ACF plot, Box Ljung test and histogram and Timeseries plot
+
+# Plot ACF for residuals
+Acf(arima_model$residuals)
+
+
+# Plot PACF for residuals
+pacf(arima_model$residuals)
+
+#Plotting time series graph of residuals
+plot.ts(residuals(arima_model),main = "Residual Analysis of ARIMA Model")
+
+#Plotting histogram graph of residuals
+hist(arima_model$residuals)
+
+#Box Ljung test
+Box.test(residuals(arima_model), lag=20, type="Ljung")
+
+# Do all the plots in one! 
+tsdiag(arima_model)
+```
+
+## Interpretation
+* Residual analysis assesses whether the model captures the underlying patterns in the data effectively. Key aspects include:
+* Checks for randomness in residuals. Ideally, residuals should be normally distributed with no visible patterns.
+* ACF/PACF of Residuals: Ensures no significant auto correlations remain in the residuals. If significant lags exist, it suggests the model has not captured all patterns in the data.
+* Autocorrelations of residuals should fall within confidence intervals.
+* Histogram seems to be normally distributed, this means model is correct and had no residuals.
+* Residuals should be random and without patterns.
+* Ljung-Box Test: A p-value > 0.05 indicates no significant auto correlations in residuals.That mean's it is a good fit.
+* The null hypothesis (residuals are independent) cannot be rejected because the p-value is much greater than 0.05.
+* Residuals are likely random and uncorrelated, which is a good indication that the model fits the data well.
+* The ARIMA model captures the patterns in the data effectively, with no significant autocorrelation left in the residuals.
+
+## 3.  Perform and Plot the forecast for the next five periods
+```{r}
+# Forecast the next 5 periods
+Final_forecast <- forecast(arima_model, h=5)
+
+# Plot the forecast
+plot(Final_forecast, main = "ARIMA Forecast for Python Questions for the next Five Periods")
+```
+
+##### Observations
+* The forecast plot visualizes the ARIMA model’s prediction for the next 5 periods.
+* Confidence intervals provide a range within which future values are expected to lie with a certain probability.
+* A narrow confidence interval indicates more precise predictions.
+
+## 4. Show the accuracy of your ARIMA model
+```{r}
+accuracy(arima_model)
+```
+
+## Interpretation
+* A small ME (close to 0) is good, as it shows the model has minimal bias. The value of -99.77 is fairly low compared to the RMSE and overall scale of the data, which is positive.
+* RMSE measures the average error magnitude, penalizing larger errors more heavily.An RMSE of 1347.805 represents an error of about 13.5%, which is reasonable for forecasting models.
+* MAE is the average absolute error, which is less sensitive to large deviations than RMSE. If the scale of Python questions is in the thousands, this suggests that the model is off by about 10% on average. This is acceptable but not highly precise.
+* MPE indicates the average percentage error, showing a slight underestimation (negative value). This is good, as the error is small and close to 0.
+* MAPE below 10% is considered a good forecasting model in most applications. As ARIMA model’s MAPE of 5.66% suggests it performs well in predicting the time series.
+* MASE compares the model error to a naive forecasting method (e.g., last observed value as the forecast). Values below 1 indicate that the model performs better than a naive method. The ARIMA Model MASE of 0.243 is excellent, as it significantly outperforms naive forecasting.
+* ACF1 should ideally be close to 0, indicating no autocorrelation in the residuals (i.e., the model has captured all patterns in the data). The ARIMA model ACF1 is low (0.07), which is a positive sign.
+
+
+##### ARIMA Model Summary
+* ARIMA(0,1,0)(1,0,0)[12] captures non-seasonal trends with a single seasonal autoregressive term.
+* MAPE: 5.66%, indicating excellent forecasting accuracy.
+* MASE: 0.243, significantly outperforming naive forecasting.
+* ACF1: 0.07, showing minimal autocorrelation in residuals.
+* Residuals are random, unbiased, and show no significant patterns or autocorrelation.
+* Short-term predictions are reliable with narrow confidence intervals, though uncertainty increases over longer horizons.
+* The ARIMA model demonstrates strong accuracy, minimal bias, and effective handling of the time series, making it well-suited for short-term forecasting tasks.
+
+## Accuracy Summary of all four Models 
+```{r}
+# Calculate accuracy for each forecast
+naive_acc <- accuracy(naive_forecast)
+naive_acc
+ses_acc <- accuracy(ses_data)
+ses_acc
+hw_acc <- accuracy(Hw_forecast)
+hw_acc
+arima_acc <- accuracy(arima_model)
+arima_acc
+
+# Create a summary of all accuracy measures
+accuracy_summary <- data.frame(
+  Model = c("Naive", "Exponential Smoothing", "Holt-Winters", "ARIMA"),
+  ME = c(naive_acc[1, "ME"], ses_acc[1, "ME"], hw_acc[1, "ME"], arima_acc[1, "ME"]),
+  RMSE = c(naive_acc[1, "RMSE"], ses_acc[1, "RMSE"], hw_acc[1, "RMSE"], arima_acc[1, "RMSE"]),
+  MAE = c(naive_acc[1, "MAE"], ses_acc[1, "MAE"], hw_acc[1, "MAE"], arima_acc[1, "MAE"]),
+  MPE = c(naive_acc[1, "MPE"], ses_acc[1, "MPE"], hw_acc[1, "MPE"], arima_acc[1, "MPE"]),
+  MAPE = c(naive_acc[1, "MAPE"], ses_acc[1, "MAPE"], hw_acc[1, "MAPE"], arima_acc[1, "MAPE"]),
+  MASE = c(naive_acc[1, "MASE"], ses_acc[1, "MASE"], hw_acc[1, "MASE"], arima_acc[1, "MASE"]),
+  ACF1 = c(naive_acc[1, "ACF1"], ses_acc[1, "ACF1"], hw_acc[1, "ACF1"], arima_acc[1, "ACF1"])
+)
+
+# Print the accuracy summary
+print(accuracy_summary)
+```
+
+## Comparison of Accuracy Measures
+
+* Mean Error (ME):
+The ARIMA model performs the best with the least bias, having a ME of -99.77, which is closest to 0.
+The Holt-Winters method has the highest bias, with a ME of -129.63, making it the worst for this measure.
+
+* Root Mean Square Error (RMSE):
+Holt-Winters provides the smallest RMSE at 1066.04, indicating it has the smallest spread of errors.
+The Naive method has the largest RMSE at 1559.15, making it the least effective for this measure.
+
+* Mean Absolute Error (MAE):
+Holt-Winters again performs the best, with the smallest MAE of 768.24, showing minimal average error.
+The Naive method is the worst, with a MAE of 1228.33.
+
+* Mean Percentage Error (MPE):
+Holt-Winters outperforms other models with the least percentage bias, having an MPE of -0.76%.
+Exponential Smoothing has the highest bias at -1.51%, making it the worst for this measure.
+
+* Mean Absolute Percentage Error (MAPE):
+Holt-Winters delivers the best accuracy with a MAPE of 4.38%, indicating minimal average percentage error.
+The Naive method performs the worst, with the highest MAPE of 7.07%.
+
+* Mean Absolute Scaled Error (MASE):
+Holt-Winters excels again, with the smallest MASE of 0.185, showing that it significantly outperforms naive forecasting.
+The Naive method has the largest MASE at 0.296, making it the least effective for this measure.
+
+* Autocorrelation of Residuals at Lag 1 (ACF1):
+Exponential Smoothing has the best residual randomness, with an ACF1 closest to 0 at -0.003.
+Holt-Winters performs the worst for this metric, with an ACF1 of 0.167, indicating some remaining correlation in the residuals.
+
+## Best & Worst Forecast Model 
+
+* Best Model: Holt-Winters performs the best overall, with superior values in RMSE, MAE, MPE, MAPE, and MASE.
+* Worst Model: Naive Method has the highest errors in RMSE, MAE, MAPE, and MASE.
+* Considering the accuracy data above, Holt-Winters is the best-performing model overall for this dataset and should be used for forecasting tasks.
+
+## Conclusion
+
+* The data seemed to have trend and seasonality initially and we checked the same with Acf and confirmed it.
+* Based on the four forecasting methods naive, simple smoothing, HoltWinters and ARIMA, we can see that The Holt-Winters model outperforms other methods across most accuracy measures, including RMSE, MAE, MAPE, and MASE, making it the most reliable for this dataset. 
+* The ARIMA model shows minimal bias and reasonable accuracy but falls short compared to Holt-Winters. 
+* The Naive method performs the worst, with the highest errors across key metrics.
+* Exponential Smoothing performs well in terms of residual randomness (ACF1) but has higher bias in percentage errors (MPE). 
+* Overall, Holt-Winters is the recommended model for accurate and reliable forecasting.
