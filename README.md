@@ -89,6 +89,7 @@ This project focuses on analyzing and forecasting trends in Python-related quest
 ## **Tools and Libraries Used**
 - **Tools**:
   - R Programming Language
+  - R Markdown
 - **Libraries**:
   - `fpp2`
   - `forecast`
@@ -96,7 +97,6 @@ This project focuses on analyzing and forecasting trends in Python-related quest
   - `dplyr`
   - `readxl`
   - `stats`
-  - `zoo`
 
 ---
 
