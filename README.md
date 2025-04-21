@@ -110,7 +110,6 @@ Special thanks to **Professor Ronak R. Parikh** for his guidance and support thr
 2. Access the project deliverables:
    - **Word File**: Includes detailed explanations and results.
    - **PowerPoint Presentation**: Summarizes key insights, visualizations, and recommendations.
-
 ---
 
 ## **Contact**
